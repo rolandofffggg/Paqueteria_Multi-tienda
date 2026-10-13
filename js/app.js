@@ -16,6 +16,7 @@ class App {
 
   async init() {
     await db.init();
+    await storeManager.init(); // Inicializar selector de sucursal
     const isAuthenticated = await auth.init();
     
     if (isAuthenticated) {
@@ -24,10 +25,7 @@ class App {
       document.getElementById('view-login').classList.remove('hidden');
     }
 
-    await this.loadBrandSettings();
-    await this.loadTariffSettings();
-    await this.loadCatalogSettings();
-    
+    await this.initStoreContext();
     this.initNetwork();
     this.loadDashboard();
     this.renderShelfButtons();
@@ -35,6 +33,12 @@ class App {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('./sw.js');
     }
+  }
+
+  async initStoreContext() {
+    await this.loadBrandSettings();
+    await this.loadTariffSettings();
+    await this.loadCatalogSettings();
   }
 
   async login() {
@@ -109,7 +113,7 @@ class App {
     }
   }
 
-  // --- RECEPCIÓN CON AUDITORÍA DE USUARIO ---
+  // --- RECEPCIÓN AISLADA POR STOREID ---
   async savePackage(e) {
     e.preventDefault();
     const pkgCode = document.getElementById('rec-codigo').value.trim().toUpperCase();
@@ -120,9 +124,12 @@ class App {
       return;
     }
 
-    const packages = await db.getAll('packages');
-    if (packages.some(p => (p.code || '').toUpperCase() === pkgCode)) {
-      this.showToast(`El código "${pkgCode}" ya existe. Ingrese uno diferente.`);
+    const storeId = storeManager.getCurrentStoreId();
+    const allPackages = await db.getAll('packages');
+    const storePackages = allPackages.filter(p => p.storeId === storeId || !p.storeId);
+
+    if (storePackages.some(p => (p.code || '').toUpperCase() === pkgCode)) {
+      this.showToast(`El código "${pkgCode}" ya existe en esta sucursal.`);
       return;
     }
 
@@ -144,6 +151,7 @@ class App {
     const pkgId = 'PKG-' + Date.now();
     const pkg = {
       packageId: pkgId,
+      storeId: storeId,
       code: pkgCode,
       qrCode: `PT:${pkgCode}`,
       client: clientName,
@@ -163,7 +171,7 @@ class App {
     this.lastCreatedPackage = pkg;
 
     await db.put('packages', pkg);
-    await db.put('syncQueue', { id: 'SYNC-' + Date.now(), type: 'CREATE', payload: pkg });
+    await db.put('syncQueue', { id: 'SYNC-' + Date.now(), storeId: storeId, type: 'CREATE', payload: pkg });
 
     this.showToast(`✅ Paquete ${pkg.code} registrado con éxito.`, 'success');
 
@@ -188,13 +196,14 @@ class App {
     syncEngine.processQueue();
   }
 
-  // --- ACTUALIZACIÓN DE UBICACIÓN Y REUBICACIÓN ---
+  // --- ACTUALIZACIÓN DE UBICACIÓN ---
   async updatePackageLocation(qrCode, newLocation) {
-    const packages = await db.getAll('packages');
-    const pkg = packages.find(p => p.qrCode === qrCode || p.code === qrCode);
+    const storeId = storeManager.getCurrentStoreId();
+    const allPackages = await db.getAll('packages');
+    const pkg = allPackages.find(p => (p.storeId === storeId || !p.storeId) && (p.qrCode === qrCode || p.code === qrCode));
 
     if (!pkg) {
-      this.showToast('Paquete no encontrado.');
+      this.showToast('Paquete no encontrado en esta sucursal.');
       return;
     }
 
@@ -209,23 +218,26 @@ class App {
     pkg.updatedBy = activeUser ? activeUser.username : 'sistema';
 
     await db.put('packages', pkg);
-    await db.put('syncQueue', { id: 'SYNC-' + Date.now(), type: 'UPDATE', payload: pkg });
+    await db.put('syncQueue', { id: 'SYNC-' + Date.now(), storeId: storeId, type: 'UPDATE', payload: pkg });
 
     const list = document.getElementById('inv-scanned-list');
-    const li = document.createElement('li');
-    li.className = 'py-1.5 flex justify-between font-mono';
-    li.innerHTML = `<span>Code: <strong>${pkg.code}</strong> -> ${newLocation}</span> <span class="text-emerald-600 font-bold">✔ OK</span>`;
-    list.prepend(li);
+    if (list) {
+      const li = document.createElement('li');
+      li.className = 'py-1.5 flex justify-between font-mono';
+      li.innerHTML = `<span>Code: <strong>${pkg.code}</strong> -> ${newLocation}</span> <span class="text-emerald-600 font-bold">✔ OK</span>`;
+      list.prepend(li);
+    }
 
     this.showToast(`Ubicación de ${pkg.code} actualizada a ${newLocation}`, 'success');
     this.loadDashboard();
     syncEngine.processQueue();
   }
 
-  // --- ENTREGA Y COBRO CON AUDITORÍA DE USUARIO ---
+  // --- ENTREGA Y COBRO ---
   async confirmDelivery() {
     if (!this.selectedDeliveryPackage) return;
 
+    const storeId = storeManager.getCurrentStoreId();
     const nombre = document.getElementById('del-retira-nombre').value.trim();
     const doc = document.getElementById('del-retira-id').value.trim();
     const activeUser = auth.getUser();
@@ -241,7 +253,7 @@ class App {
     this.selectedDeliveryPackage.updatedBy = activeUser ? activeUser.username : 'sistema';
 
     await db.put('packages', this.selectedDeliveryPackage);
-    await db.put('syncQueue', { id: 'SYNC-' + Date.now(), type: 'DELIVERY', payload: this.selectedDeliveryPackage });
+    await db.put('syncQueue', { id: 'SYNC-' + Date.now(), storeId: storeId, type: 'DELIVERY', payload: this.selectedDeliveryPackage });
 
     this.showToast(`¡Entrega confirmada! Cobro realizado: Bs. ${this.currentCalculatedAmount.toFixed(2)}`, 'success');
     document.getElementById('del-details').classList.add('hidden');
@@ -270,7 +282,7 @@ class App {
     const company = this.companyName ? `#${this.companyName}` : '#PAQUETERÍA';
     const message = 
 `--------------------------------------------------
-📦 Paquetería: ${company}
+📦 Paquetería: ${company} (${storeManager.getCurrentStoreId()})
 --------------------------------------------------
 *Código:* ${pkg.code}
 *Remitente:* ${pkg.client} (${pkg.phone || 'N/A'})
@@ -278,7 +290,7 @@ class App {
 *Contenido:* ${pkg.category} | *Tamaño:* ${pkg.size} | *Color:* ${pkg.color}
 --------------------------------------------------
 💵 *Tarifa Base:* Bs. ${this.tariffs.baseRate.toFixed(2)} / día
-📋 *Política:* Días de gracia: ${this.tariffs.graceDays} días. Penalización tras vencimiento: Bs. ${this.tariffs.dailyPenalty.toFixed(2)} / día.`;
+📋 *Política:* Días de gracia: ${this.tariffs.graceDays} días. Penalización: Bs. ${this.tariffs.dailyPenalty.toFixed(2)} / día.`;
 
     const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
     window.open(url, '_blank');
@@ -323,7 +335,6 @@ class App {
     }).join('');
   }
 
-// --- GESTIÓN DE USUARIOS CON SINCRONIZACIÓN REMOTA ---
   async saveUser(e) {
     e.preventDefault();
     if (!auth.isAdmin()) return;
@@ -354,12 +365,10 @@ class App {
       createdAt: existingUser ? existingUser.createdAt : new Date().toISOString()
     };
 
-    // 1. Guardar en base de datos local (IndexedDB)
     await db.put('users', userObj);
-
-    // 2. Registrar en la cola de sincronización remota para ParcelTrack_DB
     await db.put('syncQueue', {
       id: 'SYNC-USR-' + Date.now(),
+      storeId: storeManager.getCurrentStoreId(),
       type: 'SYNC_USER',
       payload: userObj
     });
@@ -367,12 +376,9 @@ class App {
     this.showToast(`Usuario "${username}" guardado correctamente.`, 'success');
     this.resetUserForm();
     this.loadUsersList();
-
-    // 3. Procesar cola de sincronización
     syncEngine.processQueue();
   }
 
-  
   async editUser(username) {
     const u = await db.get('users', username);
     if (!u) return;
@@ -386,7 +392,7 @@ class App {
     document.getElementById('usr-form-title').textContent = `Editar Usuario: ${u.username}`;
   }
 
-async toggleUserStatus(username) {
+  async toggleUserStatus(username) {
     const currentUser = auth.getUser();
     if (currentUser && currentUser.username === username) {
       this.showToast('Restricción: No puede bloquear su propio usuario activo.');
@@ -398,26 +404,32 @@ async toggleUserStatus(username) {
 
     u.status = u.status === 'ACTIVE' ? 'BLOCKED' : 'ACTIVE';
     
-    // 1. Actualizar localmente
     await db.put('users', u);
-
-    // 2. Registrar cambio de estado en la cola de sincronización
     await db.put('syncQueue', {
       id: 'SYNC-USR-' + Date.now(),
+      storeId: storeManager.getCurrentStoreId(),
       type: 'SYNC_USER',
       payload: u
     });
 
     this.showToast(`Estado de "${u.username}" cambiado a ${u.status}`, 'success');
     this.loadUsersList();
-
-    // 3. Procesar cola de sincronización
     syncEngine.processQueue();
   }
 
-  // --- DASHBOARD CON MOSTRADO DE AUDITORÍA ---
+  resetUserForm() {
+    const form = document.getElementById('form-user-manage');
+    if (form) form.reset();
+    document.getElementById('usr-is-edit').value = 'false';
+    document.getElementById('usr-username').readOnly = false;
+    document.getElementById('usr-form-title').textContent = 'Crear Nuevo Usuario';
+  }
+
+  // --- DASHBOARD AISLADO POR SUCURSAL ---
   async loadDashboard() {
-    const packages = await db.getAll('packages');
+    const storeId = storeManager.getCurrentStoreId();
+    const allPackages = await db.getAll('packages');
+    const packages = allPackages.filter(p => p.storeId === storeId || !p.storeId);
     const todayStr = new Date().toISOString().split('T')[0];
 
     const recibidosHoy = packages.filter(p => p.createdAt && p.createdAt.startsWith(todayStr)).length;
@@ -451,7 +463,7 @@ async toggleUserStatus(username) {
 
     const listEl = document.getElementById('list-pending');
     if (filtered.length === 0) {
-      listEl.innerHTML = '<p class="text-xs text-slate-400 text-center py-4">No se encontraron paquetes.</p>';
+      listEl.innerHTML = '<p class="text-xs text-slate-400 text-center py-4">No se encontraron paquetes en esta sucursal.</p>';
       return;
     }
 
@@ -459,7 +471,7 @@ async toggleUserStatus(username) {
       <div class="bg-white p-2.5 rounded-xl border border-slate-200 flex justify-between items-center text-xs shadow-sm">
         <div>
           <span class="font-mono font-bold text-slate-800">${p.code}</span> - <span class="font-bold text-slate-700">${p.client}</span>
-          <div class="text-[10px] text-slate-400 mt-0.5">Ub: <strong class="text-slate-600">${p.location}</strong> | Reg: <span class="text-slate-600 font-semibold">@${p.createdBy || 'sis'}</span></div>
+          <div class="text-[10px] text-slate-400 mt-0.5">Ub: <strong class="text-slate-600">${p.location}</strong> | Sucursal: <span class="text-blue-600 font-bold">${p.storeId || storeId}</span></div>
           ${p.deliveredTo ? `<div class="text-[10px] text-emerald-600">Retiró: ${p.deliveredTo} (${p.deliveredBy ? '@' + p.deliveredBy : ''}) - Bs.${(p.amountCharged || 0).toFixed(2)}</div>` : ''}
         </div>
         <div class="flex flex-col items-end gap-1">
@@ -469,32 +481,32 @@ async toggleUserStatus(username) {
     `).join('');
   }
 
-  // --- CONFIGURACIONES Y PARÁMETROS ---
-async loadBrandSettings() {
+  // --- CONFIGURACIONES ---
+  async loadBrandSettings() {
     const saved = await db.get('settings', 'brand');
     this.companyName = saved && saved.value ? saved.value : '';
     const headerTitle = document.getElementById('header-app-title');
     if (headerTitle) {
-      headerTitle.textContent = this.companyName ? `📦 ${this.companyName}` : '📦 Paquetería';
+      headerTitle.textContent = this.companyName ? `📦 ${this.companyName}` : `📦 Paquetería (${storeManager.getCurrentStoreId()})`;
     }
     const inputComp = document.getElementById('cfg-company-name');
     if (inputComp) inputComp.value = this.companyName;
   }
 
-async saveBrandSettings(e) {
+  async saveBrandSettings(e) {
     e.preventDefault();
     const val = document.getElementById('cfg-company-name').value.trim();
     this.companyName = val;
 
     await db.put('settings', { key: 'brand', value: val });
-    await db.put('syncQueue', { id: 'SYNC-SET-' + Date.now(), type: 'SYNC_SETTING', payload: { key: 'brand', value: val } });
+    await db.put('syncQueue', { id: 'SYNC-SET-' + Date.now(), storeId: storeManager.getCurrentStoreId(), type: 'SYNC_SETTING', payload: { key: 'brand', value: val } });
 
     this.loadBrandSettings();
     this.showToast('¡Nombre de marca guardado y sincronizado!', 'success');
     syncEngine.processQueue();
   }
 
-async loadCatalogSettings() {
+  async loadCatalogSettings() {
     const saved = await db.get('settings', 'catalog');
     if (saved && saved.value) this.catalog = saved.value;
 
@@ -522,7 +534,7 @@ async loadCatalogSettings() {
     };
 
     await db.put('settings', { key: 'catalog', value: this.catalog });
-    await db.put('syncQueue', { id: 'SYNC-SET-' + Date.now(), type: 'SYNC_SETTING', payload: { key: 'catalog', value: this.catalog } });
+    await db.put('syncQueue', { id: 'SYNC-SET-' + Date.now(), storeId: storeManager.getCurrentStoreId(), type: 'SYNC_SETTING', payload: { key: 'catalog', value: this.catalog } });
 
     this.populateReceptionSelects();
     this.showToast('¡Catálogo guardado y sincronizado!', 'success');
@@ -548,43 +560,7 @@ async loadCatalogSettings() {
     }
   }
 
-  async exportBackup() {
-    const packages = await db.getAll('packages');
-    const settings = await db.getAll('settings');
-    const syncQueue = await db.getAll('syncQueue');
-    const users = await db.getAll('users');
-
-    const backupData = { version: 3, timestamp: new Date().toISOString(), packages, settings, syncQueue, users };
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
-    const dlAnchor = document.createElement('a');
-    dlAnchor.setAttribute("href", dataStr);
-    dlAnchor.setAttribute("download", `Backup_Paqueteria_${new Date().toISOString().split('T')[0]}.json`);
-    document.body.appendChild(dlAnchor);
-    dlAnchor.click();
-    dlAnchor.remove();
-  }
-
-  async importBackup(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      try {
-        const data = JSON.parse(e.target.result);
-        if (data.packages) { for (const pkg of data.packages) await db.put('packages', pkg); }
-        if (data.settings) { for (const st of data.settings) await db.put('settings', st); }
-        if (data.users) { for (const us of data.users) await db.put('users', us); }
-        this.showToast('¡Restauración completada con éxito!', 'success');
-        setTimeout(() => location.reload(), 1000);
-      } catch (err) {
-        this.showToast('Error al leer el archivo JSON de respaldo.');
-      }
-    };
-    reader.readAsText(file);
-  }
-
-async loadTariffSettings() {
+  async loadTariffSettings() {
     const saved = await db.get('settings', 'tariffs');
     if (saved && saved.value) this.tariffs = saved.value;
     
@@ -597,7 +573,7 @@ async loadTariffSettings() {
     if (penEl) penEl.value = this.tariffs.dailyPenalty;
   }
 
-async saveTariffSettings(e) {
+  async saveTariffSettings(e) {
     e.preventDefault();
     this.tariffs = {
       baseRate: parseFloat(document.getElementById('cfg-rate-base').value) || 0,
@@ -606,7 +582,7 @@ async saveTariffSettings(e) {
     };
 
     await db.put('settings', { key: 'tariffs', value: this.tariffs });
-    await db.put('syncQueue', { id: 'SYNC-SET-' + Date.now(), type: 'SYNC_SETTING', payload: { key: 'tariffs', value: this.tariffs } });
+    await db.put('syncQueue', { id: 'SYNC-SET-' + Date.now(), storeId: storeManager.getCurrentStoreId(), type: 'SYNC_SETTING', payload: { key: 'tariffs', value: this.tariffs } });
 
     this.showToast('¡Tarifas guardadas y sincronizadas!', 'success');
     syncEngine.processQueue();
@@ -698,7 +674,10 @@ async saveTariffSettings(e) {
       return; 
     }
 
-    const packages = await db.getAll('packages');
+    const storeId = storeManager.getCurrentStoreId();
+    const allPackages = await db.getAll('packages');
+    const packages = allPackages.filter(p => p.storeId === storeId || !p.storeId);
+    
     const clientMap = new Map();
     packages.forEach(p => {
       if (p.client) clientMap.set(p.client.toLowerCase(), { name: p.client, phone: p.phone || '' });
@@ -732,7 +711,10 @@ async saveTariffSettings(e) {
     const printCard = document.getElementById('print-card-target');
     if (!printCard) return;
 
-    const packages = await db.getAll('packages');
+    const storeId = storeManager.getCurrentStoreId();
+    const allPackages = await db.getAll('packages');
+    const packages = allPackages.filter(p => p.storeId === storeId || !p.storeId);
+
     if (packages.length === 0) {
       printCard.innerHTML = '<p class="text-xs text-slate-400 py-4">No hay paquetes registrados.</p>';
       return;
@@ -740,31 +722,6 @@ async saveTariffSettings(e) {
 
     packages.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     this.renderPrintCard(packages[0]);
-  }
-
-  async searchPrintPackage(query) {
-    const q = (query || '').toLowerCase().trim();
-    const printCard = document.getElementById('print-card-target');
-    if (!printCard) return;
-
-    const packages = await db.getAll('packages');
-    if (!q) {
-      this.loadPrintNotifyView();
-      return;
-    }
-
-    const filtered = packages.filter(p => 
-      (p.code || '').toLowerCase().includes(q) || 
-      (p.client || '').toLowerCase().includes(q)
-    );
-
-    if (filtered.length === 0) {
-      printCard.innerHTML = '<p class="text-xs text-slate-400 py-4">No se encontró ningún paquete.</p>';
-      return;
-    }
-
-    filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    this.renderPrintCard(filtered[0]);
   }
 
   renderPrintCard(pkg) {
@@ -791,184 +748,11 @@ async saveTariffSettings(e) {
       </div>
       <div class="space-y-1.5 pt-1">
         <button onclick='app.sendWhatsAppNotification(${JSON.stringify(pkg)}, "client")' ${!hasClientPhone ? 'disabled' : ''} 
-          class="w-full bg-green-500 disabled:bg-slate-300 text-white font-bold py-2 rounded-lg text-xs flex items-center justify-center gap-1 shadow-sm">
-          🟢 Enviar WhatsApp Cliente
-        </button>
-        <button onclick='app.sendWhatsAppNotification(${JSON.stringify(pkg)}, "recipient")' ${!hasRecipientPhone ? 'disabled' : ''} 
-          class="w-full bg-green-600 disabled:bg-slate-300 text-white font-bold py-2 rounded-lg text-xs flex items-center justify-center gap-1 shadow-sm">
-          🟢 Enviar WhatsApp Destinatario
+          class="w-full bg-green-500 disabled:bg-slate-300 text-white font-bold py-1.5 rounded-lg text-xs">
+          Enviar WhatsApp Cliente
         </button>
       </div>
     `;
-  }
-
-  async loadManageList() {
-    const listEl = document.getElementById('manage-list');
-    if (!listEl) return;
-
-    const query = (document.getElementById('manage-search')?.value || '').toLowerCase();
-    const packages = await db.getAll('packages');
-    packages.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
-    const filtered = packages.filter(p => 
-      (p.client || '').toLowerCase().includes(query) ||
-      (p.code || '').toLowerCase().includes(query) ||
-      (p.location || '').toLowerCase().includes(query)
-    );
-
-    if (filtered.length === 0) {
-      listEl.innerHTML = '<p class="text-xs text-slate-400 text-center py-4">No se encontraron registros.</p>';
-      return;
-    }
-
-    listEl.innerHTML = filtered.map(p => `
-      <div class="bg-white p-2.5 rounded-xl border border-slate-200 flex justify-between items-center text-xs shadow-sm">
-        <div>
-          <span class="font-mono font-bold text-slate-800">${p.code}</span> - <span class="font-semibold text-slate-700">${p.client}</span>
-          <div class="text-[10px] text-slate-400 mt-0.5">Ub: <strong class="text-slate-600">${p.location}</strong> | Por: <strong class="text-slate-600">@${p.createdBy || 'sis'}</strong></div>
-        </div>
-        <div class="flex gap-1">
-          <button onclick="app.openEditModal('${p.packageId}')" class="px-2 py-1 bg-blue-50 text-blue-600 rounded-lg text-[10px] font-bold border border-blue-200">✏️️ Editar</button>
-          <button onclick="app.deletePackage('${p.packageId}')" class="px-2 py-1 bg-red-50 text-red-600 rounded-lg text-[10px] font-bold border border-red-200">🗑️ Borrar</button>
-        </div>
-      </div>
-    `).join('');
-  }
-
-  async openEditModal(packageId) {
-    const pkg = await db.get('packages', packageId);
-    if (!pkg) return;
-
-    document.getElementById('edit-pkg-id').value = pkg.packageId;
-    document.getElementById('edit-pkg-code-title').textContent = pkg.code;
-    document.getElementById('edit-client').value = pkg.client || '';
-    document.getElementById('edit-phone').value = pkg.phone || '';
-    document.getElementById('edit-recipient-phone').value = pkg.recipientPhone || '';
-    document.getElementById('edit-location').value = pkg.location || '';
-    document.getElementById('edit-status').value = pkg.status || 'PENDIENTE';
-    document.getElementById('edit-category').value = pkg.category || '';
-    document.getElementById('edit-size').value = pkg.size || '';
-    document.getElementById('edit-color').value = pkg.color || '';
-
-    document.getElementById('modal-edit-pkg').classList.remove('hidden');
-  }
-
-  closeEditModal() {
-    document.getElementById('modal-edit-pkg').classList.add('hidden');
-  }
-
-  async saveEditedPackage(e) {
-    e.preventDefault();
-    const pkgId = document.getElementById('edit-pkg-id').value;
-    const pkg = await db.get('packages', pkgId);
-    if (!pkg) return;
-
-    const activeUser = auth.getUser();
-    pkg.client = document.getElementById('edit-client').value.toUpperCase().trim();
-    pkg.phone = document.getElementById('edit-phone').value.replace(/\D/g, '');
-    pkg.recipientPhone = document.getElementById('edit-recipient-phone').value.replace(/\D/g, '');
-    pkg.location = document.getElementById('edit-location').value.trim();
-    pkg.status = document.getElementById('edit-status').value;
-    pkg.category = document.getElementById('edit-category').value.trim();
-    pkg.size = document.getElementById('edit-size').value.trim();
-    pkg.color = document.getElementById('edit-color').value.trim();
-    pkg.updatedAt = new Date().toISOString();
-    pkg.updatedBy = activeUser ? activeUser.username : 'sistema';
-
-    await db.put('packages', pkg);
-    await db.put('syncQueue', { id: 'SYNC-' + Date.now(), type: 'UPDATE', payload: pkg });
-
-    this.closeEditModal();
-    this.loadManageList();
-    this.loadDashboard();
-    syncEngine.processQueue();
-  }
-
-  async deletePackage(packageId) {
-    if (!confirm('¿Está seguro de eliminar este registro permanente?')) return;
-    const pkg = await db.get('packages', packageId);
-    if (!pkg) return;
-
-    await db.delete('packages', packageId);
-    await db.put('syncQueue', { id: 'SYNC-' + Date.now(), type: 'DELETE', payload: { packageId } });
-
-    this.loadManageList();
-    this.loadDashboard();
-    syncEngine.processQueue();
-  }
-
-  setFixedLocationManual() {
-    const val = document.getElementById('inv-loc-input').value.trim();
-    if (!val) { this.showToast('Ingrese una ubicación válida'); return; }
-    document.getElementById('inv-fixed-loc').textContent = val;
-    document.getElementById('btn-scan-pkg').disabled = false;
-    document.getElementById('btn-add-inv-pkg').disabled = false;
-    document.getElementById('inv-scanned-list').innerHTML = '';
-  }
-
-  async processInventoryManual() {
-    const code = document.getElementById('inv-pkg-input').value.trim();
-    const fixedLoc = document.getElementById('inv-fixed-loc').textContent;
-    if (!code) { this.showToast('Ingrese un código de paquete'); return; }
-    await this.updatePackageLocation(code, fixedLoc);
-    document.getElementById('inv-pkg-input').value = '';
-  }
-
-  async searchDeliveryManual() {
-    const code = document.getElementById('del-search-code').value.trim();
-    if (!code) { this.showToast('Ingrese un código de paquete'); return; }
-    await this.prepareDelivery(code);
-  }
-
-  async prepareDelivery(qrCode) {
-    const packages = await db.getAll('packages');
-    const pkg = packages.find(p => p.qrCode === qrCode || p.code === qrCode);
-
-    if (!pkg || pkg.status === 'ENTREGADO') {
-      this.showToast('Paquete no disponible para entrega.');
-      return;
-    }
-
-    this.selectedDeliveryPackage = pkg;
-    const createdDate = new Date(pkg.createdAt || Date.now());
-    const now = new Date();
-    const diffTime = Math.abs(now - createdDate);
-    const diffDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
-
-    const { baseRate, graceDays, dailyPenalty } = this.tariffs;
-    const montoBase = diffDays * baseRate;
-    const diasRetraso = Math.max(0, diffDays - graceDays);
-    const montoPenalizacion = diasRetraso * dailyPenalty;
-    const totalCobro = montoBase + montoPenalizacion;
-
-    this.currentCalculatedAmount = totalCobro;
-
-    document.getElementById('del-pkg-code').textContent = pkg.code;
-    document.getElementById('del-pkg-client').textContent = pkg.client;
-    document.getElementById('del-pkg-loc').textContent = pkg.location;
-
-    const formattedDate = new Date(pkg.createdAt).toLocaleString('es-ES', {
-      day: '2-digit', month: '2-digit', year: 'numeric',
-      hour: '2-digit', minute: '2-digit'
-    });
-    document.getElementById('del-pkg-date').textContent = formattedDate;
-
-    document.getElementById('calc-days').textContent = diffDays;
-    document.getElementById('calc-base').textContent = `Bs. ${montoBase.toFixed(2)}`;
-    document.getElementById('calc-penalty').textContent = `Bs. ${montoPenalizacion.toFixed(2)}`;
-    document.getElementById('calc-total').textContent = `Bs. ${totalCobro.toFixed(2)}`;
-
-    document.getElementById('del-details').classList.remove('hidden');
-  }
-
-  async downloadReport() {
-    const packages = await db.getAll('packages');
-    packages.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    reports.exportToCSV(packages, `Reporte_Paqueteria_${new Date().toISOString().split('T')[0]}.csv`);
-  }
-
-  syncNow() {
-    syncEngine.processQueue();
   }
 }
 
