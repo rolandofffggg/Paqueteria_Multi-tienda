@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#0f172a">
-  <title>Paquetería PWA</title>
+  <title>Paquetería Multitienda PWA</title>
   <link rel="manifest" href="./manifest.json">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
@@ -112,7 +112,6 @@
       </div>
     </section>
 
-    
     <!-- Recepción View -->
     <section id="sec-reception" class="space-y-3 hidden">
       <div class="flex justify-between items-center">
@@ -147,14 +146,9 @@
           </div>
         </div>
 
-        <br>
         <div>
           <div class="flex justify-between items-center mb-1">
             <label class="block text-[10px] font-bold text-slate-500 uppercase">Características del Paquete</label>
-            <label class="flex items-center gap-1 text-xs text-slate-600 cursor-pointer select-none">
-              <input type="checkbox" id="chk-keep-category" class="w-3.5 h-3.5 rounded text-blue-600 focus:ring-blue-500 border-slate-300">
-              <span class="text-[10px] font-medium">Fijar Características</span>
-            </label>
           </div>
           <div class="grid grid-cols-3 gap-2">
             <div>
@@ -175,40 +169,22 @@
           </div>
         </div>
 
-        <!-- Listas desplegables encadenadas -->
-        <br>
         <div>
-          <div class="flex justify-between items-center mb-1">
-            <label class="block text-[10px] font-bold text-slate-500 uppercase">Ubicación del Paquete</label>
-            <label class="flex items-center gap-1 text-xs text-slate-600 cursor-pointer select-none">
-              <input type="checkbox" id="chk-keep-location" class="w-3.5 h-3.5 rounded text-blue-600 focus:ring-blue-500 border-slate-300">
-              <span class="text-[10px] font-medium">Fijar Ubicación</span>
-            </label>
-          </div>
-          <input type="text" id="rec-ubicacion" readonly required placeholder="Ubicación (Grupo1-Grupo2-Grupo3)" class="w-full px-2.5 py-2 border rounded-lg bg-slate-50 font-bold text-blue-600 text-xs mb-2 text-center">
-          <div class="grid grid-cols-3 gap-1.5">
+          <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Ubicación (Estante / Fila)</label>
+          <input type="text" id="rec-ubicacion" readonly required placeholder="Seleccione Estante y Fila" class="w-full px-2.5 py-2 border rounded-lg bg-slate-50 font-bold text-blue-600 text-xs mb-2 text-center">
+          
+          <div class="space-y-2">
             <div>
-              <label class="block text-[9px] text-slate-500 font-bold mb-1">Grupo 1:</label>
-              <select id="rec-grupo1" onchange="app.handleGroup1Change(this.value)" class="w-full px-2 py-2 border rounded-lg text-xs font-bold bg-white">
-                <option value="" disabled selected>Seleccionar...</option>
-              </select>
+              <span class="block text-[9px] text-slate-500 font-bold mb-1">Estantes (E1 - E10):</span>
+              <div id="shelf-buttons" class="grid grid-cols-5 gap-1"></div>
             </div>
-            <div>
-              <label class="block text-[9px] text-slate-500 font-bold mb-1">Grupo 2:</label>
-              <select id="rec-grupo2" disabled onchange="app.handleGroup2Change(this.value)" class="w-full px-2 py-2 border rounded-lg text-xs font-bold bg-white disabled:bg-slate-100 disabled:text-slate-400">
-                <option value="" disabled selected>Seleccionar...</option>
-              </select>
-            </div>
-            <div>
-              <label class="block text-[9px] text-slate-500 font-bold mb-1">Grupo 3:</label>
-              <select id="rec-grupo3" disabled onchange="app.handleGroup3Change(this.value)" class="w-full px-2 py-2 border rounded-lg text-xs font-bold bg-white disabled:bg-slate-100 disabled:text-slate-400">
-                <option value="" disabled selected>Seleccionar...</option>
-              </select>
+            <div id="rows-container" class="hidden">
+              <span class="block text-[9px] text-slate-500 font-bold mb-1">Filas (F1 - F5):</span>
+              <div id="row-buttons" class="grid grid-cols-5 gap-1"></div>
             </div>
           </div>
         </div>
 
-        <br>
         <button type="submit" class="w-full bg-blue-600 text-white font-bold py-2.5 rounded-xl hover:bg-blue-700 transition mt-1 text-xs">
           💾 Guardar Paquete
         </button>
@@ -224,28 +200,26 @@
       <div id="print-card-target" class="bg-white p-4 rounded-xl border border-slate-200 text-center space-y-3 shadow-md">
         <p class="text-xs text-slate-400 py-4">Cargando último paquete registrado...</p>
       </div>
-      <!-- Contenedor oculto para renderizar el QR en Canvas con qrcodejs para compartir imagen -->
       <div id="qr-canvas-container" class="hidden"></div>
     </section>
 
     <!-- Ubicaciones View -->
-<section id="sec-inventory" class="space-y-3 hidden">
+    <section id="sec-inventory" class="space-y-3 hidden">
       <h2 class="text-base font-bold text-slate-700">Inventario y Reubicación</h2>
       <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm space-y-2.5">
-        <!-- Fila 1: Ubicación Fija -->
         <div>
            <div class="flex gap-1.5 items-center">
-            <input type="text" id="inv-fixed-loc" oninput="app.handleFixedLocationInput(this.value)" placeholder="Ubicación Ej.Grupo1-Grupo2-Grupo3" class="w-full px-2.5 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 font-bold text-blue-600 text-xs">
+            <input type="text" id="inv-fixed-loc" oninput="app.handleFixedLocationInput(this.value)" placeholder="Ubicación Ej. E1-F2" class="w-full px-2.5 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 font-bold text-blue-600 text-xs">
             <button type="button" onclick="scanner.scanLocation()" class="bg-slate-800 text-white px-2.5 py-2 rounded-lg text-xs font-semibold flex items-center gap-1 shrink-0">📷 Scan</button>
            </div>
         </div>
 
-        <!-- Fila 2: Código Paquete -->
         <div class="grid grid-cols-12 gap-1.5 items-center">
           <input type="text" id="inv-pkg-input" placeholder="Código Paquete" class="col-span-6 px-2.5 py-2 border rounded-lg text-xs font-bold">
           <button onclick="app.processInventoryManual()" id="btn-add-inv-pkg" disabled class="col-span-3 bg-emerald-600 disabled:bg-slate-300 text-white py-2 rounded-lg text-xs font-semibold text-center">Verificar</button>
           <button onclick="scanner.scanInventoryPackage()" id="btn-scan-pkg" disabled class="col-span-3 bg-slate-800 disabled:bg-slate-300 text-white py-2 rounded-lg text-xs font-semibold text-center">📷 Scan</button>
         </div>
+      </div>
 
       <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
         <h3 class="text-xs font-bold text-slate-500 uppercase mb-1.5">Paquetes Verificados</h3>
@@ -379,7 +353,6 @@
 
     <!-- Ajustes View (Solo ADMIN) -->
     <section id="sec-settings" class="space-y-4 hidden">
-      <!-- Datos de Marca -->
       <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
         <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">🏢 Nombre de la Paquetería</h3>
         <form onsubmit="app.saveBrandSettings(event)" class="space-y-2">
@@ -388,7 +361,6 @@
         </form>
       </div>
     
-      <!-- Tarifas y Políticas -->
       <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
         <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">💵 Tarifas y Políticas</h3>
         <form onsubmit="app.saveTariffSettings(event)" class="space-y-2">
@@ -410,7 +382,6 @@
         </form>
       </div>
     
-      <!-- Catalogación (Categorías, Tamaños, Colores) -->
       <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
         <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">📦 Catalogación de Productos</h3>
         <form onsubmit="app.saveCatalogSettings(event)" class="space-y-3">
@@ -427,26 +398,6 @@
             <input type="text" id="cfg-catalog-colors" placeholder="ROJO, AZUL, NEGRO" class="w-full px-3 py-1.5 text-xs border rounded-xl font-bold">
           </div>
           <button type="submit" class="w-full bg-blue-600 text-white font-bold py-2 rounded-xl text-xs">Guardar Catálogo Global</button>
-        </form>
-      </div>
-
-      <!-- Configuración de Grupos / Ubicaciones -->
-      <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-        <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">📍 Configuración de Grupos de Ubicación</h3>
-        <form onsubmit="app.saveLocationGroupsSettings(event)" class="space-y-3">
-          <div>
-            <label class="text-[10px] text-slate-500 font-bold uppercase">Grupo 1 (separados por coma)</label>
-            <input type="text" id="cfg-group1" placeholder="E1, E2, E3" class="w-full px-3 py-1.5 text-xs border rounded-xl font-bold">
-          </div>
-          <div>
-            <label class="text-[10px] text-slate-500 font-bold uppercase">Grupo 2 (separados por coma)</label>
-            <input type="text" id="cfg-group2" placeholder="PASILLO1, PASILLO2" class="w-full px-3 py-1.5 text-xs border rounded-xl font-bold">
-          </div>
-          <div>
-            <label class="text-[10px] text-slate-500 font-bold uppercase">Grupo 3 (separados por coma)</label>
-            <input type="text" id="cfg-group3" placeholder="ESTANTE A, ESTANTE B" class="w-full px-3 py-1.5 text-xs border rounded-xl font-bold">
-          </div>
-          <button type="submit" class="w-full bg-blue-600 text-white font-bold py-2 rounded-xl text-xs">Guardar Grupos Globales</button>
         </form>
       </div>
 
@@ -558,7 +509,9 @@
     <button onclick="scanner.close()" class="w-full bg-white/20 text-white py-2.5 rounded-xl text-xs font-semibold z-10">Cancelar</button>
   </div>
 
+  <!-- Scripts con el módulo store.js integrado -->
   <script src="./js/db.js"></script>
+  <script src="./js/store.js"></script>
   <script src="./js/auth.js"></script>
   <script src="./js/api.js"></script>
   <script src="./js/sync.js"></script>
