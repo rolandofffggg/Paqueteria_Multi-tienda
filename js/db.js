@@ -1,5 +1,5 @@
 const DB_NAME = 'ParcelTrackMultiStoreDB';
-const DB_VERSION = 4; // Versión con soporte multi-tienda y storeId
+const DB_VERSION = 4;
 
 class LocalDB {
   constructor() {
@@ -77,12 +77,6 @@ class LocalDB {
       const req = store.getAll();
       req.onsuccess = () => resolve(req.result || []);
     });
-  }
-
-  async getAllByStore(storeName, storeId) {
-    const all = await this.getAll(storeName);
-    if (!storeId) return all;
-    return all.filter(item => item.storeId === storeId || !item.storeId);
   }
 
   async put(storeName, data) {
