@@ -1,21 +1,26 @@
 {
-  "name": "Paquetería PWA",
+  "id": "com.paqueteria.multistore.app",
+  "name": "Paquetería Multitienda PWA",
   "short_name": "Paquetería",
-  "description": "Sistema de Control de Paquetes y Logística",
+  "description": "Sistema de Control Logístico Multitienda con Google Drive",
   "start_url": "./index.html",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#0f172a",
   "theme_color": "#0f172a",
+  "categories": ["business", "productivity", "utilities"],
   "icons": [
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/684/684908.png",
+      "src": "./icons/icon-192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/684/684908.png",
+      "src": "./icons/icon-512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }
