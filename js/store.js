@@ -23,7 +23,6 @@ class StoreManager {
     localStorage.setItem('pt_storeId', storeId);
     sessionStorage.setItem('pt_storeId', storeId);
     
-    // Disparar recarga de datos en la app
     if (typeof app !== 'undefined') {
       await app.initStoreContext();
     }
@@ -34,7 +33,6 @@ class StoreManager {
     const headerTitle = document.getElementById('header-app-title');
     if (!headerTitle) return;
 
-    // Crear o actualizar selector visual de sucursal en el header
     let selectEl = document.getElementById('store-selector-dropdown');
     if (!selectEl) {
       selectEl = document.createElement('select');
