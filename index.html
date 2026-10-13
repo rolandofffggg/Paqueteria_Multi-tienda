@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es" class="h-full bg-slate-100">
+<html lang="es" class="h-full bg-slate-150">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -8,22 +8,29 @@
   <link rel="manifest" href="./manifest.json">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
-  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+  <!-- Librería qrcode-generator para renderizado QR síncrono instantáneo -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+  <!-- Librería QRCode para generar Canvas y compartir imagen en Blob -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <link rel="stylesheet" href="./css/app.css">
 </head>
 <body class="h-full flex flex-col text-slate-800 antialiased selection:bg-blue-500 selection:text-white">
 
   <!-- Header compacto -->
-<header class="bg-slate-900 text-white sticky top-0 z-40 shadow-md">
-  <div class="max-w-md mx-auto px-4 py-2 flex items-center justify-between">
-    <h1 class="text-base font-bold tracking-wide text-blue-400" id="header-app-title">📦 </h1>
-    <div class="flex items-center space-x-2 text-[11px]">
-      <span id="session-user-label" class="text-slate-200 font-bold bg-slate-800 px-2 py-0.5 rounded-lg border border-slate-700">Adm.</span>
-      <span id="net-status" class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[9px]">ONLINE</span>
-      <button onclick="auth.logout()" title="Cerrar Sesión" class="text-red-400 font-bold hover:text-red-300 ml-1 text-sm">🚪</button>
+  <header class="bg-slate-900 text-white sticky top-0 z-40 shadow-md">
+    <div class="max-w-md mx-auto px-4 py-2 flex items-center justify-between">
+      <h1 class="text-base font-bold tracking-wide text-blue-400" id="header-app-title">📦 </h1>
+      <div class="flex items-center space-x-2 text-[11px]">
+        <span id="session-user-label" class="text-slate-200 font-bold bg-slate-800 px-2 py-0.5 rounded-lg border border-slate-700">Adm.</span>
+        <span id="net-status" class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[9px]">ONLINE</span>
+        <button onclick="auth.logout()" class="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-xs font-bold border border-red-200 transition-colors" title="Cerrar Sesión">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+          </svg>
+        </button>
+      </div>
     </div>
-  </div>
-</header>
+  </header>
 
   <!-- Login Modal -->
   <div id="view-login" class="fixed inset-0 bg-slate-900 z-50 flex items-center justify-center p-4">
@@ -105,6 +112,7 @@
       </div>
     </section>
 
+    
     <!-- Recepción View -->
     <section id="sec-reception" class="space-y-3 hidden">
       <div class="flex justify-between items-center">
@@ -116,64 +124,97 @@
       </div>
 
       <form id="form-reception" onsubmit="app.savePackage(event)" class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm space-y-2.5">
-        <div class="relative">
-          <input type="text" id="rec-cliente" required autocomplete="off" oninput="app.handleClientAutocomplete(this.value)" placeholder="Cliente *" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-xs font-bold">
-          <div id="client-suggestions" class="hidden absolute left-0 right-0 top-full bg-white border border-slate-200 rounded-b-lg shadow-lg z-30 max-h-40 overflow-y-auto divide-y text-xs"></div>
+        <div class="space-y-2.5">
+          <div class="relative">
+            <input type="text" id="rec-cliente" required autocomplete="off" oninput="app.handleClientAutocomplete(this.value)" placeholder="Cliente" class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-xs font-bold">
+            <div id="client-suggestions" class="hidden absolute left-0 right-0 top-full bg-white border border-slate-200 rounded-b-lg shadow-lg z-30 max-h-40 overflow-y-auto divide-y text-xs"></div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <input type="tel" id="rec-celular" placeholder="Celular Cliente" class="w-full px-2.5 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-xs font-bold">
+            </div>
+            <div>
+              <input type="tel" id="rec-celular-dest" placeholder="Celular Destinatario" class="w-full px-2.5 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-xs font-bold">
+            </div>
+          </div>
+
+          <div>
+            <div class="flex gap-2">
+              <input type="text" id="rec-codigo" required placeholder="Código Paquete" class="w-full px-2.5 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-xs font-bold">
+              <button type="button" onclick="scanner.scanToInput('rec-codigo')" class="bg-slate-800 text-white px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-1 shrink-0">📷 QR</button>
+            </div>
+          </div>
         </div>
 
-        <div class="grid grid-cols-2 gap-2">
-          <div>
-            <input type="tel" id="rec-celular" placeholder="Celular Cliente" class="w-full px-2.5 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-xs font-bold">
-          </div>
-          <div>
-            <input type="tel" id="rec-celular-dest" placeholder="Celular Destinatario" class="w-full px-2.5 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-xs font-bold">
-          </div>
-        </div>
-
+        <br>
         <div>
-          <div class="flex gap-2">
-            <input type="text" id="rec-codigo" required maxlength="5" placeholder="Código Paquete (Ej: P0001)" class="flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-xs font-mono font-bold uppercase">
-            <button type="button" onclick="scanner.scanToInput('rec-codigo')" class="bg-slate-800 text-white px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-1 shrink-0">📷 QR</button>
+          <div class="flex justify-between items-center mb-1">
+            <label class="block text-[10px] font-bold text-slate-500 uppercase">Características del Paquete</label>
+            <label class="flex items-center gap-1 text-xs text-slate-600 cursor-pointer select-none">
+              <input type="checkbox" id="chk-keep-category" class="w-3.5 h-3.5 rounded text-blue-600 focus:ring-blue-500 border-slate-300">
+              <span class="text-[10px] font-medium">Fijar Características</span>
+            </label>
           </div>
-          <span class="text-[9px] text-slate-400 mt-0.5 block">Exactamente 5 caracteres (Inicia con letra, termina con número).</span>
+          <div class="grid grid-cols-3 gap-2">
+            <div>
+              <select id="rec-categoria" class="w-full px-2 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-xs font-bold bg-white">
+                <option value="" disabled selected>Contenido</option>
+              </select>
+            </div>
+            <div>
+              <select id="rec-tamano" class="w-full px-2 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-xs font-bold bg-white">
+                <option value="" disabled selected>Tamaño</option>
+              </select>
+            </div>
+            <div>
+              <select id="rec-color" class="w-full px-2 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-xs font-bold bg-white">
+                <option value="" disabled selected>Color</option>
+              </select>
+            </div>
+          </div>
         </div>
 
-        <div class="grid grid-cols-3 gap-2">
-          <div>
-            <select id="rec-categoria" class="w-full px-2 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-xs font-bold">
-              <option value="" disabled selected>Contenido</option>
-            </select>
-          </div>
-          <div>
-            <select id="rec-tamano" class="w-full px-2 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-xs font-bold">
-              <option value="" disabled selected>Tamaño</option>
-            </select>
-          </div>
-          <div>
-            <select id="rec-color" class="w-full px-2 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-xs font-bold">
-              <option value="" disabled selected>Color</option>
-            </select>
-          </div>
-        </div>
-
+        <!-- Listas desplegables encadenadas -->
+        <br>
         <div>
-          <input type="text" id="rec-ubicacion" readonly required placeholder="Ubicación (Estante y Fila) *" class="w-full px-3 py-2 border rounded-lg bg-slate-50 font-mono font-bold text-blue-600 text-xs mb-2 text-center">
-          <div class="mb-2">
-            <span class="block text-[10px] text-slate-500 font-bold mb-1">1. Seleccionar Estante:</span>
-            <div id="shelf-buttons" class="grid grid-cols-5 gap-1"></div>
+          <div class="flex justify-between items-center mb-1">
+            <label class="block text-[10px] font-bold text-slate-500 uppercase">Ubicación del Paquete</label>
+            <label class="flex items-center gap-1 text-xs text-slate-600 cursor-pointer select-none">
+              <input type="checkbox" id="chk-keep-location" class="w-3.5 h-3.5 rounded text-blue-600 focus:ring-blue-500 border-slate-300">
+              <span class="text-[10px] font-medium">Fijar Ubicación</span>
+            </label>
           </div>
-          <div id="rows-container" class="hidden">
-            <span class="block text-[10px] text-slate-500 font-bold mb-1">2. Seleccionar Fila:</span>
-            <div id="row-buttons" class="grid grid-cols-5 gap-1"></div>
+          <input type="text" id="rec-ubicacion" readonly required placeholder="Ubicación (Grupo1-Grupo2-Grupo3)" class="w-full px-2.5 py-2 border rounded-lg bg-slate-50 font-bold text-blue-600 text-xs mb-2 text-center">
+          <div class="grid grid-cols-3 gap-1.5">
+            <div>
+              <label class="block text-[9px] text-slate-500 font-bold mb-1">Grupo 1:</label>
+              <select id="rec-grupo1" onchange="app.handleGroup1Change(this.value)" class="w-full px-2 py-2 border rounded-lg text-xs font-bold bg-white">
+                <option value="" disabled selected>Seleccionar...</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[9px] text-slate-500 font-bold mb-1">Grupo 2:</label>
+              <select id="rec-grupo2" disabled onchange="app.handleGroup2Change(this.value)" class="w-full px-2 py-2 border rounded-lg text-xs font-bold bg-white disabled:bg-slate-100 disabled:text-slate-400">
+                <option value="" disabled selected>Seleccionar...</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[9px] text-slate-500 font-bold mb-1">Grupo 3:</label>
+              <select id="rec-grupo3" disabled onchange="app.handleGroup3Change(this.value)" class="w-full px-2 py-2 border rounded-lg text-xs font-bold bg-white disabled:bg-slate-100 disabled:text-slate-400">
+                <option value="" disabled selected>Seleccionar...</option>
+              </select>
+            </div>
           </div>
         </div>
 
+        <br>
         <button type="submit" class="w-full bg-blue-600 text-white font-bold py-2.5 rounded-xl hover:bg-blue-700 transition mt-1 text-xs">
-          💾 Guardar Registro de Paquete
+          💾 Guardar Paquete
         </button>
       </form>
     </section>
-
+    
     <!-- Módulo de Notificaciones -->
     <section id="sec-print-notify" class="space-y-3 hidden">
       <h2 class="text-base font-bold text-slate-700">Notificaciones de Paquetes</h2>
@@ -183,29 +224,28 @@
       <div id="print-card-target" class="bg-white p-4 rounded-xl border border-slate-200 text-center space-y-3 shadow-md">
         <p class="text-xs text-slate-400 py-4">Cargando último paquete registrado...</p>
       </div>
+      <!-- Contenedor oculto para renderizar el QR en Canvas con qrcodejs para compartir imagen -->
+      <div id="qr-canvas-container" class="hidden"></div>
     </section>
 
     <!-- Ubicaciones View -->
-    <section id="sec-inventory" class="space-y-3 hidden">
+<section id="sec-inventory" class="space-y-3 hidden">
       <h2 class="text-base font-bold text-slate-700">Inventario y Reubicación</h2>
       <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm space-y-2.5">
-        <div class="grid grid-cols-12 gap-1.5 items-center">
-          <input type="text" id="inv-loc-input" placeholder="Código Ubicación *" class="col-span-6 px-2.5 py-1.5 border rounded-lg text-xs font-mono font-bold">
-          <button onclick="app.setFixedLocationManual()" class="col-span-3 bg-blue-600 text-white py-1.5 rounded-lg text-xs font-semibold text-center">Fijar</button>
-          <button onclick="scanner.scanLocation()" class="col-span-3 bg-slate-800 text-white py-1.5 rounded-lg text-xs font-semibold text-center">📷 Scan</button>
+        <!-- Fila 1: Ubicación Fija -->
+        <div>
+           <div class="flex gap-1.5 items-center">
+            <input type="text" id="inv-fixed-loc" oninput="app.handleFixedLocationInput(this.value)" placeholder="Ubicación Ej.Grupo1-Grupo2-Grupo3" class="w-full px-2.5 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 font-bold text-blue-600 text-xs">
+            <button type="button" onclick="scanner.scanLocation()" class="bg-slate-800 text-white px-2.5 py-2 rounded-lg text-xs font-semibold flex items-center gap-1 shrink-0">📷 Scan</button>
+           </div>
         </div>
 
-        <div class="flex items-center justify-between bg-slate-50 p-2 rounded-lg border text-xs">
-          <span class="font-bold text-slate-500">UBICACIÓN FIJA:</span>
-          <span id="inv-fixed-loc" class="font-mono font-bold text-blue-600">NINGUNA</span>
-        </div>
-
+        <!-- Fila 2: Código Paquete -->
         <div class="grid grid-cols-12 gap-1.5 items-center">
-          <input type="text" id="inv-pkg-input" placeholder="Código Paquete *" class="col-span-6 px-2.5 py-1.5 border rounded-lg text-xs font-mono font-bold">
-          <button onclick="app.processInventoryManual()" id="btn-add-inv-pkg" disabled class="col-span-3 bg-emerald-600 disabled:bg-slate-300 text-white py-1.5 rounded-lg text-xs font-semibold text-center">Verificar</button>
-          <button onclick="scanner.scanInventoryPackage()" id="btn-scan-pkg" disabled class="col-span-3 bg-slate-800 disabled:bg-slate-300 text-white py-1.5 rounded-lg text-xs font-semibold text-center">📷 Scan</button>
+          <input type="text" id="inv-pkg-input" placeholder="Código Paquete" class="col-span-6 px-2.5 py-2 border rounded-lg text-xs font-bold">
+          <button onclick="app.processInventoryManual()" id="btn-add-inv-pkg" disabled class="col-span-3 bg-emerald-600 disabled:bg-slate-300 text-white py-2 rounded-lg text-xs font-semibold text-center">Verificar</button>
+          <button onclick="scanner.scanInventoryPackage()" id="btn-scan-pkg" disabled class="col-span-3 bg-slate-800 disabled:bg-slate-300 text-white py-2 rounded-lg text-xs font-semibold text-center">📷 Scan</button>
         </div>
-      </div>
 
       <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
         <h3 class="text-xs font-bold text-slate-500 uppercase mb-1.5">Paquetes Verificados</h3>
@@ -220,7 +260,7 @@
       <h2 class="text-base font-bold text-slate-700">Entrega de Paquete</h2>
       <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm space-y-2.5">
         <div class="flex gap-2">
-          <input type="text" id="del-search-code" placeholder="Código de Paquete *" class="flex-1 px-3 py-1.5 border rounded-lg text-xs font-mono font-bold">
+          <input type="text" id="del-search-code" placeholder="Código de Paquete" class="flex-1 px-3 py-1.5 border rounded-lg text-xs font-bold">
           <button onclick="app.searchDeliveryManual()" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0">Buscar</button>
           <button onclick="scanner.scanForDelivery()" class="bg-slate-800 text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 shrink-0">📷 QR</button>
         </div>
@@ -390,6 +430,26 @@
         </form>
       </div>
 
+      <!-- Configuración de Grupos / Ubicaciones -->
+      <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+        <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">📍 Configuración de Grupos de Ubicación</h3>
+        <form onsubmit="app.saveLocationGroupsSettings(event)" class="space-y-3">
+          <div>
+            <label class="text-[10px] text-slate-500 font-bold uppercase">Grupo 1 (separados por coma)</label>
+            <input type="text" id="cfg-group1" placeholder="E1, E2, E3" class="w-full px-3 py-1.5 text-xs border rounded-xl font-bold">
+          </div>
+          <div>
+            <label class="text-[10px] text-slate-500 font-bold uppercase">Grupo 2 (separados por coma)</label>
+            <input type="text" id="cfg-group2" placeholder="PASILLO1, PASILLO2" class="w-full px-3 py-1.5 text-xs border rounded-xl font-bold">
+          </div>
+          <div>
+            <label class="text-[10px] text-slate-500 font-bold uppercase">Grupo 3 (separados por coma)</label>
+            <input type="text" id="cfg-group3" placeholder="ESTANTE A, ESTANTE B" class="w-full px-3 py-1.5 text-xs border rounded-xl font-bold">
+          </div>
+          <button type="submit" class="w-full bg-blue-600 text-white font-bold py-2 rounded-xl text-xs">Guardar Grupos Globales</button>
+        </form>
+      </div>
+
       <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm space-y-2.5">
         <h3 class="text-xs font-bold text-blue-600 uppercase">Resguardo (Backup / Restore)</h3>
         <div class="grid grid-cols-2 gap-2">
@@ -400,23 +460,18 @@
           </label>
         </div>
       </div>
-      
     </section>
-
-    <!-- Nuevo Módulo UI: Gestión de Usuarios (Solo ADMIN) -->
+    
+    <!-- Gestión de Usuarios -->
     <section id="sec-users" class="space-y-3 hidden">
       <h2 class="text-base font-bold text-slate-700">Gestión de Usuarios</h2>
-
-      <!-- Formulario de Creación / Edición de Usuarios -->
       <form id="form-user-manage" onsubmit="app.saveUser(event)" class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm space-y-2.5">
         <input type="hidden" id="usr-is-edit" value="false">
         <h3 class="text-xs font-bold text-blue-600 uppercase" id="usr-form-title">Crear Nuevo Usuario</h3>
-        
         <div>
           <label class="block text-[11px] font-bold text-slate-600 uppercase mb-0.5">Nombre Completo</label>
           <input type="text" id="usr-fullname" required placeholder="Ej. Juan Pérez" class="w-full px-3 py-1.5 border rounded-lg text-xs font-bold">
         </div>
-
         <div class="grid grid-cols-2 gap-2">
           <div>
             <label class="block text-[11px] font-bold text-slate-600 uppercase mb-0.5">Usuario</label>
@@ -427,7 +482,6 @@
             <input type="password" id="usr-pin" required maxlength="6" placeholder="****" class="w-full px-3 py-1.5 border rounded-lg text-xs font-bold">
           </div>
         </div>
-
         <div>
           <label class="block text-[11px] font-bold text-slate-600 uppercase mb-0.5">Rol de Acceso</label>
           <select id="usr-role" class="w-full px-3 py-1.5 border rounded-lg text-xs font-bold bg-white">
@@ -435,14 +489,12 @@
             <option value="ADMIN">ADMIN (Acceso Total)</option>
           </select>
         </div>
-
         <div class="flex gap-2 pt-1">
           <button type="submit" class="flex-1 bg-blue-600 text-white font-bold py-2 rounded-xl text-xs hover:bg-blue-700">💾 Guardar Usuario</button>
           <button type="button" onclick="app.resetUserForm()" class="bg-slate-100 text-slate-600 font-bold px-3 py-2 rounded-xl text-xs">Cancelar</button>
         </div>
       </form>
 
-      <!-- Tabla / Lista de Usuarios -->
       <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm space-y-2">
         <h3 class="text-xs font-bold text-slate-700 uppercase mb-2">Usuarios Registrados</h3>
         <div id="users-list" class="space-y-2 divide-y divide-slate-100">
@@ -453,58 +505,41 @@
 
   </main>
 
-  <!-- Navigation Bar Mobile (Con SVG Vectoriales) -->
+  <!-- Navigation Bar Mobile -->
   <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-40 h-14 shadow-lg">
     <div class="max-w-md mx-auto h-full grid grid-cols-8 text-center">
-      
-      <!-- Dashboard -->
       <button onclick="app.showSec('sec-dashboard')" class="nav-btn active flex flex-col justify-center items-center text-slate-500 hover:text-blue-600">
         <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
         <span class="text-[7px] leading-tight mt-0.5">Dashboard</span>
       </button>
-
-      <!-- Recepción -->
       <button onclick="app.showSec('sec-reception')" class="nav-btn flex flex-col justify-center items-center text-slate-500 hover:text-blue-600">
-        <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M20 13H4V5h16m0-2H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V5c0-1.11-.89-2-2-2m-8 9.5l4.5-4.5H13V7h-2v3.5H8.5L12 14.5z"/></svg>
+        <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M21 16.5c0 .38-.21.71-.53.88l-7.9 4.44c-.16.09-.34.14-.57.14s-.41-.05-.57-.14l-7.9-4.44A1.003 1.003 0 0 1 3 16.5v-9c0-.38.21-.71.53-.88l7.9-4.44c.16-.09.34-.14.57-.14s.41.05.57.14l7.9 4.44c.32.17.53.5.53.88v9M12 4.15l-6.12 3.44L12 11.02l6.12-3.43L12 4.15M5 15.39l6 3.37v-6.74L5 8.65v6.74m14 0v-6.74l-6 3.37v6.74l6-3.37z"/></svg>
         <span class="text-[7px] leading-tight mt-0.5">Recepción</span>
       </button>
-
-      <!-- Notificaciones -->
       <button onclick="app.showSec('sec-print-notify')" class="nav-btn flex flex-col justify-center items-center text-slate-500 hover:text-blue-600">
         <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
         <span class="text-[7px] leading-tight mt-0.5">Notificar</span>
       </button>
-
-      <!-- Ubicaciones -->
       <button onclick="app.showSec('sec-inventory')" class="nav-btn flex flex-col justify-center items-center text-slate-500 hover:text-blue-600">
         <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
         <span class="text-[7px] leading-tight mt-0.5">Ubicación</span>
       </button>
-
-      <!-- Entrega -->
       <button onclick="app.showSec('sec-delivery')" class="nav-btn flex flex-col justify-center items-center text-slate-500 hover:text-blue-600">
         <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M20 8h-3V4H3c-1.1 0-2 .9-2 2v11h2c0 1.66 1.34 3 3 3s3-1.34 3-3h6c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5l-3-4zM6 18.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm13.5-9l1.96 2.5H17V9.5h2.5zm-1 9c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>
         <span class="text-[7px] leading-tight mt-0.5">Entrega</span>
       </button>
-
-      <!-- Gestión -->
-      <button onclick="app.showSec('sec-manage')" class="nav-btn flex flex-col justify-center items-center text-slate-500 hover:text-blue-600">
+      <button onclick="app.showSec('sec-manage')" class="nav-btn nav-admin-only flex flex-col justify-center items-center text-slate-500 hover:text-blue-600">
         <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
-        <span class="text-[7px] leading-tight mt-0.5">Gestión</span>
+        <span class="text-[7px] leading-tight mt-0.5">Editar</span>
       </button>
-
-      <!-- Ajustes (Solo ADMIN) -->
       <button onclick="app.showSec('sec-settings')" class="nav-btn nav-admin-only flex flex-col justify-center items-center text-slate-500 hover:text-blue-600">
-        <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+        <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c-.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
         <span class="text-[7px] leading-tight mt-0.5">Ajustes</span>
       </button>
-
-      <!-- Usuarios (Solo ADMIN) -->
       <button onclick="app.showSec('sec-users')" class="nav-btn nav-admin-only flex flex-col justify-center items-center text-slate-500 hover:text-blue-600">
         <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
         <span class="text-[7px] leading-tight mt-0.5">Usuarios</span>
       </button>
-
     </div>
   </nav>
 
@@ -530,5 +565,16 @@
   <script src="./js/scanner.js"></script>
   <script src="./js/reports.js"></script>
   <script src="./js/app.js"></script>
+
+  <!-- Registro del Service Worker para PWABuilder -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(reg => console.log('Service Worker registrado con éxito:', reg.scope))
+          .catch(err => console.error('Error al registrar el Service Worker:', err));
+      });
+    }
+  </script>
 </body>
 </html>
