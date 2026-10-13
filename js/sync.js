@@ -1,4 +1,4 @@
-const PARCELTRACK_API_URL = 'https://script.google.com/macros/s/AKfycbyOZpnkHZUu13TURsRMx4cuwkpN5JqPzHE2Fc6bBe_yyAAwIV9pGQqmwWoN8220aqMGgA/exec';
+const PARCELTRACK_API_URL = 'https://script.google.com/macros/s/AKfycbyRhx190jTPrUu1horwetaHioAQuklUOQFqIj2dOtgw-aZX_nx-FtUjCIQ00p48NFipuA/exec';
 
 class SyncEngine {
   constructor() {
