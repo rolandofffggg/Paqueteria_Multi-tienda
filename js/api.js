@@ -4,45 +4,33 @@ class ApiService {
   async sendSyncItem(syncItem) {
     if (!PARCELTRACK_API_URL || PARCELTRACK_API_URL.includes('TU_SCRIPT_ID_AQUI')) return;
     try {
+      const storeId = storeManager.getCurrentStoreId();
+      const payload = {
+        storeId: storeId,
+        action: 'syncItem',
+        item: syncItem
+      };
       const response = await fetch(PARCELTRACK_API_URL, {
         method: 'POST',
         mode: 'cors',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(syncItem)
+        body: JSON.stringify(payload)
       });
       return await response.json();
     } catch (error) {
-      console.error('Error enviando item:', error);
+      console.error('Error enviando item a Google Drive:', error);
       throw error;
     }
   }
 
-  async getRemotePackages() {
-    if (!PARCELTRACK_API_URL || PARCELTRACK_API_URL.includes('TU_SCRIPT_ID_AQUI')) return [];
-    try {
-      const response = await fetch(PARCELTRACK_API_URL, { method: 'GET', mode: 'cors' });
-      return await response.json();
-    } catch (error) {
-      return [];
-    }
-  }
-
-  async getRemoteUsers() {
-    if (!PARCELTRACK_API_URL || PARCELTRACK_API_URL.includes('TU_SCRIPT_ID_AQUI')) return [];
-    try {
-      const response = await fetch(`${PARCELTRACK_API_URL}?action=getUsers`, { method: 'GET', mode: 'cors' });
-      return await response.json();
-    } catch (error) {
-      return [];
-    }
-  }
-
-  async getRemoteSettings() {
+  async getRemoteBackup() {
     if (!PARCELTRACK_API_URL || PARCELTRACK_API_URL.includes('TU_SCRIPT_ID_AQUI')) return null;
     try {
-      const response = await fetch(`${PARCELTRACK_API_URL}?action=getSettings`, { method: 'GET', mode: 'cors' });
+      const storeId = storeManager.getCurrentStoreId();
+      const response = await fetch(`${PARCELTRACK_API_URL}?storeId=${storeId}&action=getBackup`, { method: 'GET', mode: 'cors' });
       return await response.json();
     } catch (error) {
+      console.error('Error obteniendo respaldo remoto:', error);
       return null;
     }
   }
