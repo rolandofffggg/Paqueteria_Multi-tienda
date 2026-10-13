@@ -8,111 +8,79 @@ const DB_USERS_SHEET_NAME = 'USUARIOS';
 const DB_SETTINGS_SHEET_NAME = 'CONFIGURACION';
 
 function doGet(e) {
-  try {
-    const action = e.parameter.action;
-
-    // 1. Obtener Usuarios
-    if (action === 'getUsers') {
-      const userSheet = getOrCreateUserSheet();
-      const userData = userSheet.getDataRange().getValues();
-      if (userData.length <= 1) return responseJSON([]);
-      const userHeaders = userData[0];
-      const users = userData.slice(1).map(row => {
-        let u = {};
-        userHeaders.forEach((h, i) => u[h] = row[i]);
-        return u;
-      });
-      return responseJSON(users);
+  var storeId = e.parameter.storeId || 'LAPAZ';
+  var fileName = 'Backup_Tienda_' + storeId.charAt(0) + storeId.slice(1).toLowerCase() + '.json';
+  
+  var folders = DriveApp.getFoldersByName('PaqueteriaBackups');
+  if (folders.hasNext()) {
+    var folder = folders.next();
+    var files = folder.getFilesByName(fileName);
+    if (files.hasNext()) {
+      var content = files.next().getBlob().getDataAsString();
+      return ContentService.createTextOutput(content).setMimeType(ContentService.MimeType.JSON);
     }
-
-    // 2. Obtener Ajustes Globales
-    if (action === 'getSettings') {
-      const settingsSheet = getOrCreateSettingsSheet();
-      const data = settingsSheet.getDataRange().getValues();
-      if (data.length <= 1) return responseJSON([]);
-      const settings = {};
-      data.slice(1).forEach(row => {
-        try {
-          settings[row[0]] = JSON.parse(row[1]);
-        } catch (err) {
-          settings[row[0]] = row[1];
-        }
-      });
-      return responseJSON(settings);
-    }
-
-    // 3. Obtener Paquetes (Por Defecto)
-    const sheet = getDatabaseSheet();
-    const data = sheet.getDataRange().getValues();
-    if (data.length <= 1) return responseJSON([]);
-
-    const headers = data[0];
-    const packages = data.slice(1).map(row => {
-      let pkg = {};
-      headers.forEach((header, index) => pkg[header] = row[index]);
-      return pkg;
-    });
-
-    return responseJSON(packages);
-  } catch (error) {
-    return responseJSON({ status: 'error', message: error.toString() });
   }
+  
+  return ContentService.createTextOutput(JSON.stringify({ storeId: storeId, packages: [], settings: {} }))
+    .setMimeType(ContentService.MimeType.JSON);
 }
 
 function doPost(e) {
-  const lock = LockService.getScriptLock();
-  lock.tryLock(10000);
-
   try {
-    if (!e.postData || !e.postData.contents) {
-      return responseJSON({ status: 'error', message: 'No se recibieron datos.' });
+    var data = JSON.parse(e.postData.contents);
+    var storeId = data.storeId || 'LAPAZ';
+    var fileName = 'Backup_Tienda_' + storeId.charAt(0) + storeId.slice(1).toLowerCase() + '.json';
+    
+    var folders = DriveApp.getFoldersByName('PaqueteriaBackups');
+    var folder = folders.hasNext() ? folders.next() : DriveApp.createFolder('PaqueteriaBackups');
+    
+    var files = folder.getFilesByName(fileName);
+    var file;
+    var backupData = { storeId: storeId, packages: [], settings: {}, updatedAt: new Date().toISOString() };
+    
+    if (files.hasNext()) {
+      file = files.next();
+      backupData = JSON.parse(file.getBlob().getDataAsString());
     }
-
-    const syncItem = JSON.parse(e.postData.contents);
-    const actionType = syncItem.type;
-    const payload = syncItem.payload;
-
-    // --- MANEJO DE CONFIGURACIÓN GLOBAL ---
-    if (actionType === 'SYNC_SETTING') {
-      const settingsSheet = getOrCreateSettingsSheet();
-      const result = saveOrUpdateSetting(settingsSheet, payload.key, payload.value);
-      return responseJSON(result);
+    
+    if (data.item) {
+      var item = data.item;
+      if (item.type === 'CREATE' || item.type === 'UPDATE' || item.type === 'DELIVERY') {
+        var pkg = item.payload;
+        pkg.storeId = storeId;
+        var found = false;
+        for (var i = 0; i < backupData.packages.length; i++) {
+          if (backupData.packages[i].packageId === pkg.packageId) {
+            backupData.packages[i] = pkg;
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          backupData.packages.push(pkg);
+        }
+      } else if (item.type === 'DELETE') {
+        var pkgId = item.payload.packageId;
+        backupData.packages = backupData.packages.filter(function(p) { return p.packageId !== pkgId; });
+      } else if (item.type === 'SYNC_SETTING') {
+        backupData.settings[item.payload.key] = item.payload.value;
+      }
     }
-
-    // --- MANEJO DE USUARIOS ---
-    if (actionType === 'SYNC_USER') {
-      const userSheet = getOrCreateUserSheet();
-      const result = saveOrUpdateUser(userSheet, payload);
-      return responseJSON(result);
+    
+    backupData.updatedAt = new Date().toISOString();
+    var jsonString = JSON.stringify(backupData, null, 2);
+    
+    if (file) {
+      file.setContent(jsonString);
+    } else {
+      folder.createFile(fileName, jsonString, MimeType.PLAIN_TEXT);
     }
-
-    // --- MANEJO DE PAQUETES ---
-    if (!payload || !payload.packageId) {
-      return responseJSON({ status: 'error', message: 'Identificador no válido.' });
-    }
-
-    const sheet = getDatabaseSheet();
-    let result;
-
-    switch (actionType) {
-      case 'CREATE':
-      case 'UPDATE':
-      case 'DELIVERY':
-        result = saveOrUpdateRecord(sheet, payload);
-        break;
-      case 'DELETE':
-        result = deleteRecord(sheet, payload.packageId);
-        break;
-      default:
-        result = { status: 'error', message: 'Acción no reconocida: ' + actionType };
-    }
-
-    return responseJSON(result);
-
-  } catch (error) {
-    return responseJSON({ status: 'error', message: error.toString() });
-  } finally {
-    lock.releaseLock();
+    
+    return ContentService.createTextOutput(JSON.stringify({ status: 'success', storeId: storeId }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ status: 'error', message: err.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
   }
 }
 
