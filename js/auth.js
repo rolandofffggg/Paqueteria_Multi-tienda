@@ -30,23 +30,33 @@ class AuthManager {
       return { success: false, message: 'Ingrese usuario y clave/PIN.' };
     }
 
-    // 1. Buscar usuario en IndexedDB local
-    let user = await db.get('users', username);
-
-    // 2. Si no se encuentra en local, intentar sincronizar usuarios remotos de ParcelTrack_DB
-    if (!user && navigator.onLine) {
+    // 1. S sincronizar y purgar usuarios obsoletos desde el servidor remoto si hay conexión
+    if (navigator.onLine) {
       try {
         const remoteUsers = await api.getRemoteUsers();
-        if (Array.isArray(remoteUsers)) {
+        if (Array.isArray(remoteUsers) && remoteUsers.length > 0) {
+          const remoteUsernames = remoteUsers.map(u => u.username.toLowerCase());
+          const localUsers = await db.getAll('users');
+          
+          // Eliminar de IndexedDB local los usuarios que ya no existen en la planilla remota
+          for (const locUser of localUsers) {
+            if (!remoteUsernames.includes(locUser.username.toLowerCase())) {
+              await db.delete('users', locUser.username);
+            }
+          }
+
+          // Guardar / actualizar los usuarios vigentes de la nube
           for (const u of remoteUsers) {
             await db.put('users', u);
           }
-          user = await db.get('users', username);
         }
       } catch (err) {
-        console.warn('No se pudo verificar usuarios en línea:', err);
+        console.warn('No se pudo sincronizar usuarios en línea:', err);
       }
     }
+
+    // 2. Buscar usuario en IndexedDB local ya actualizado
+    let user = await db.get('users', username);
 
     if (!user) {
       return { success: false, message: 'Usuario no encontrado. Verifique el nombre.' };
@@ -101,11 +111,24 @@ class AuthManager {
 
   hasAccess(tabId) {
     if (!this.currentUser) return false;
-    const adminOnlyTabs = ['sec-settings', 'sec-users'];
-    if (adminOnlyTabs.includes(tabId) && !this.isAdmin()) {
-      return false;
+
+    // Si es Administrador, tiene acceso total a todos los módulos
+    if (this.isAdmin()) {
+      return true;
     }
-    return true;
+
+    // Si es Operador, restringir exclusivamente a los 5 módulos permitidos:
+    // Dashboard, Recepción, Notificar, Ubicación y Entrega.
+    const allowedTabsForOperator = [
+      'sec-dashboard',     // Dashboard
+      'sec-manage', // Si deseas permitir gestion básica o restringir módulos específicos
+      'sec-reception',     // Recepción
+      'sec-print-notify',  // Notificar
+      'sec-inventory',     // Ubicación
+      'sec-delivery'       // Entrega
+    ];
+
+    return allowedTabsForOperator.includes(tabId);
   }
 
   getUserShortLabel() {
@@ -135,4 +158,4 @@ class AuthManager {
   }
 }
 
-const auth = new AuthManager();uthManager();
+const auth = new AuthManager();
